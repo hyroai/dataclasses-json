@@ -11,6 +11,7 @@ from dataclasses import (MISSING,
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+
 from typing import Any, Collection, Mapping, Union, get_type_hints, Tuple
 from uuid import UUID
 
@@ -21,12 +22,15 @@ from dataclasses_json.utils import (_get_type_cons, _get_type_origin,
                                     _handle_undefined_parameters_safe,
                                     _is_collection, _is_mapping, _is_new_type,
                                     _is_optional, _isinstance_safe,
-                                    _issubclass_safe)
+                                    _issubclass_safe, _cache_for_typing_args)
 
 Json = Union[dict, list, str, int, float, bool, None]
 
 confs = ['encoder', 'decoder', 'mm_field', 'letter_case', 'exclude']
 FieldOverride = namedtuple('FieldOverride', confs)
+
+get_type_hints = _cache_for_typing_args(get_type_hints)
+
 
 
 class _ExtendedEncoder(json.JSONEncoder):
@@ -49,7 +53,7 @@ class _ExtendedEncoder(json.JSONEncoder):
             result = json.JSONEncoder.default(self, o)
         return result
 
-
+@_cache_for_typing_args
 def _user_overrides_or_exts(cls):
     global_metadata = defaultdict(dict)
     encoders = cfg.global_config.encoders
@@ -230,7 +234,7 @@ def _support_extended_types(field_type, field_value):
         res = field_value
     return res
 
-
+@_cache_for_typing_args
 def _is_supported_generic(type_):
     not_str = not _issubclass_safe(type_, str)
     is_enum = _issubclass_safe(type_, Enum)
@@ -330,7 +334,7 @@ def _asdict(obj, encode_json=False):
     """
     if _is_dataclass_instance(obj):
         result = []
-        overrides = _user_overrides_or_exts(obj)
+        overrides = _user_overrides_or_exts(type(obj))
         for field in fields(obj):
             if overrides[field.name].encoder:
                 value = getattr(obj, field.name)
@@ -343,7 +347,7 @@ def _asdict(obj, encode_json=False):
 
         result = _handle_undefined_parameters_safe(cls=obj, kvs=dict(result),
                                                    usage="to")
-        return _encode_overrides(dict(result), _user_overrides_or_exts(obj),
+        return _encode_overrides(dict(result), _user_overrides_or_exts(type(obj)),
                                  encode_json=encode_json)
     elif isinstance(obj, Mapping):
         return dict((_asdict(k, encode_json=encode_json),

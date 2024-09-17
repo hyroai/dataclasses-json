@@ -1,7 +1,19 @@
 import inspect
 import sys
 from datetime import datetime, timezone
+from functools import wraps
 from typing import Collection, Mapping, Optional, TypeVar, Any
+
+# lru_cache that supports unary functions of unhashable argument by using id of arg instead of hash
+def _cache_for_typing_args(f):
+    cache = {}
+    @wraps(f)
+    def wrapper(*args):
+        k=tuple(id(a) for a in args)
+        if k not in cache:
+            cache[k] = f(*args)
+        return cache[k]
+    return wrapper
 
 
 def _get_type_cons(type_):
@@ -66,7 +78,7 @@ def _isinstance_safe(o, t):
     else:
         return result
 
-
+@_cache_for_typing_args
 def _issubclass_safe(cls, classinfo):
     try:
         return issubclass(cls, classinfo)
